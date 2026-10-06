@@ -245,11 +245,15 @@ const status =
 
 let expiresAt = null;
 
+let currentToken = null;
+
 let countdownTimer = null;
 
 let queueCheckTimer = null;
 
 let creatingQR = false;
+
+let checkingSession = false;
 
 
 // ---------------------------------
@@ -283,6 +287,24 @@ async function checkQueueStatus() {
         if (data.queueFull) {
 
             showQueueFull();
+
+            return;
+
+        }
+
+
+        /*
+         * Queue has space.
+         *
+         * If we already have a QR,
+         * first check whether someone
+         * has used it or whether it
+         * has expired.
+         */
+
+        if (currentToken) {
+
+            await checkCurrentSession();
 
         } else {
 
@@ -347,18 +369,23 @@ function showQR() {
     );
 
 
-    status.textContent =
-        "Creating secure session...";
-
-
     /*
-     * Only create a new QR if we
-     * don't currently have one.
+     * Only show "Creating secure
+     * session" when we are actually
+     * creating one.
      */
 
     if (!expiresAt) {
 
+        status.textContent =
+            "Creating secure session...";
+
         createQRSession();
+
+    } else {
+
+        status.textContent =
+            "QR is active";
 
     }
 
@@ -412,6 +439,8 @@ async function createQRSession() {
 
             expiresAt = null;
 
+            currentToken = null;
+
             showQueueFull();
 
             return;
@@ -433,9 +462,13 @@ async function createQRSession() {
             data.expiresAt;
 
 
+        currentToken =
+            data.token;
+
+
         const customerUrl =
             `${CUSTOMER_URL}/?session=${encodeURIComponent(
-                data.token
+                currentToken
             )}`;
 
 
@@ -464,6 +497,8 @@ async function createQRSession() {
 
         expiresAt = null;
 
+        currentToken = null;
+
 
         status.textContent =
             "Could not create QR. Retrying...";
@@ -472,6 +507,119 @@ async function createQRSession() {
     } finally {
 
         creatingQR = false;
+
+    }
+
+}
+
+
+// ---------------------------------
+// CHECK CURRENT QR SESSION
+// ---------------------------------
+
+async function checkCurrentSession() {
+
+    if (
+        !currentToken ||
+        checkingSession
+    ) {
+        return;
+    }
+
+
+    checkingSession = true;
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${WORKER_URL}/qr/validate?token=${encodeURIComponent(
+                    currentToken
+                )}`
+            );
+
+
+        const data =
+            await response.json();
+
+
+        /*
+         * QR has been used or expired.
+         *
+         * Create a completely new
+         * session.
+         */
+
+        if (!response.ok || !data.valid) {
+
+            clearInterval(
+                countdownTimer
+            );
+
+
+            expiresAt = null;
+
+            currentToken = null;
+
+
+            timer.textContent =
+                "Refreshing QR...";
+
+
+            showQR();
+
+
+            return;
+
+        }
+
+
+        /*
+         * Session is still valid.
+         */
+
+        if (data.expiresAt) {
+
+            expiresAt =
+                data.expiresAt;
+
+        }
+
+
+        queueFullArea.classList.add(
+            "hidden"
+        );
+
+
+        qrArea.classList.remove(
+            "hidden"
+        );
+
+
+        status.textContent =
+            "QR is active";
+
+
+        /*
+         * Make sure countdown is
+         * running after returning
+         * from Queue Full state.
+         */
+
+        if (!countdownTimer) {
+
+            startCountdown();
+
+        }
+
+    } catch (error) {
+
+        console.error(error);
+
+    } finally {
+
+        checkingSession = false;
 
     }
 
@@ -493,6 +641,13 @@ function startCountdown() {
         setInterval(
             () => {
 
+                if (!expiresAt) {
+
+                    return;
+
+                }
+
+
                 const remaining =
                     expiresAt -
                     Date.now();
@@ -508,6 +663,8 @@ function startCountdown() {
 
 
                     expiresAt = null;
+
+                    currentToken = null;
 
 
                     timer.textContent =
