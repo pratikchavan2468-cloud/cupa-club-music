@@ -241,10 +241,15 @@
 
 </main>
 
+
+<!-- YouTube IFrame Player API -->
+<script src="https://www.youtube.com/iframe_api"></script>
+
 <script>
 
 const WORKER_URL =
     "https://cupa-club-radio.pratikchavan2468.workers.dev";
+
 
 const startButton =
     document.getElementById("start-button");
@@ -272,9 +277,24 @@ let radioStarted = false;
 
 let currentSong = null;
 
+let youtubePlayer = null;
+
 let polling = false;
 
 let pollTimer = null;
+
+let youtubeReady = false;
+
+
+/* -------------------------
+   YOUTUBE API READY
+------------------------- */
+
+window.onYouTubeIframeAPIReady = function () {
+
+    youtubeReady = true;
+
+};
 
 
 /* -------------------------
@@ -329,10 +349,12 @@ async function checkQueue() {
             await response.json();
 
         if (!response.ok) {
+
             throw new Error(
                 data.error ||
                 "Could not load queue"
             );
+
         }
 
         const requests =
@@ -340,8 +362,9 @@ async function checkQueue() {
 
         renderQueue(requests);
 
+
         /*
-         * If nothing is currently playing,
+         * If nothing is playing,
          * start the first pending song.
          */
 
@@ -386,9 +409,9 @@ async function startNextSong(request) {
     songChannel.textContent =
         request.channel || "";
 
+
     /*
-     * Mark the request as playing
-     * before starting playback.
+     * Mark song as playing.
      */
 
     try {
@@ -420,31 +443,198 @@ async function startNextSong(request) {
 
 
     /*
-     * Load official YouTube player.
+     * Wait for YouTube API.
      */
 
-    player.innerHTML = `
-        <iframe
-            id="youtube-player"
-            src="https://www.youtube.com/embed/${encodeURIComponent(
-                request.video_id
-            )}?autoplay=1&rel=0"
-            title="Cupa Club Radio"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowfullscreen>
-        </iframe>
-    `;
+    if (!youtubeReady) {
+
+        setTimeout(
+            () => startNextSong(request),
+            500
+        );
+
+        return;
+
+    }
 
 
     /*
-     * IMPORTANT:
-     *
-     * We cannot reliably detect the end of a
-     * YouTube iframe using a normal iframe.
-     *
-     * So for the next step we'll add the official
-     * YouTube IFrame API.
+     * Create YouTube player.
      */
+
+    player.innerHTML =
+        `<div id="youtube-player"></div>`;
+
+
+    youtubePlayer =
+        new YT.Player(
+            "youtube-player",
+            {
+
+                width: "100%",
+
+                height: "100%",
+
+                videoId:
+                    request.video_id,
+
+                playerVars: {
+
+                    autoplay: 1,
+
+                    rel: 0,
+
+                    playsinline: 1
+
+                },
+
+                events: {
+
+                    onReady:
+                        onPlayerReady,
+
+                    onStateChange:
+                        onPlayerStateChange,
+
+                    onError:
+                        onPlayerError
+
+                }
+
+            }
+        );
+
+}
+
+
+/* -------------------------
+   PLAYER READY
+------------------------- */
+
+function onPlayerReady(event) {
+
+    event.target.playVideo();
+
+}
+
+
+/* -------------------------
+   PLAYER STATE CHANGE
+------------------------- */
+
+function onPlayerStateChange(event) {
+
+    /*
+     * 0 = ENDED
+     */
+
+    if (
+        event.data ===
+        YT.PlayerState.ENDED
+    ) {
+
+        finishCurrentSong();
+
+    }
+
+}
+
+
+/* -------------------------
+   PLAYER ERROR
+------------------------- */
+
+function onPlayerError(event) {
+
+    console.error(
+        "YouTube player error:",
+        event.data
+    );
+
+    finishCurrentSong();
+
+}
+
+
+/* -------------------------
+   FINISH CURRENT SONG
+------------------------- */
+
+async function finishCurrentSong() {
+
+    if (!currentSong) {
+        return;
+    }
+
+    const finishedSong =
+        currentSong;
+
+    currentSong = null;
+
+
+    /*
+     * Mark current song as played.
+     */
+
+    try {
+
+        await fetch(
+            `${WORKER_URL}/request/played`,
+            {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    id:
+                        finishedSong.id
+                })
+
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Could not mark song as played:",
+            error
+        );
+
+    }
+
+
+    /*
+     * Destroy old YouTube player.
+     */
+
+    if (youtubePlayer) {
+
+        youtubePlayer.destroy();
+
+        youtubePlayer = null;
+
+    }
+
+
+    player.innerHTML = "";
+
+
+    songTitle.textContent =
+        "Loading next song...";
+
+    songChannel.textContent = "";
+
+
+    /*
+     * Immediately check for
+     * the next song.
+     */
+
+    await checkQueue();
 
 }
 
@@ -462,8 +652,10 @@ function renderQueue(requests) {
                 request.id !== currentSong.id
         );
 
+
     queueCount.textContent =
         `${pending.length} / 5`;
+
 
     if (!pending.length) {
 
@@ -474,18 +666,24 @@ function renderQueue(requests) {
         `;
 
         return;
+
     }
 
+
     queueList.innerHTML = "";
+
 
     pending.forEach(
         (request, index) => {
 
             const item =
-                document.createElement("div");
+                document.createElement(
+                    "div"
+                );
 
             item.className =
                 "queue-item";
+
 
             item.innerHTML = `
 
@@ -510,6 +708,7 @@ function renderQueue(requests) {
                 </div>
             `;
 
+
             queueList.appendChild(item);
 
         }
@@ -525,9 +724,12 @@ function renderQueue(requests) {
 function escapeHTML(text) {
 
     const div =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
-    div.textContent = text;
+    div.textContent =
+        text;
 
     return div.innerHTML;
 
