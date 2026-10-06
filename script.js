@@ -1,322 +1,490 @@
 const WORKER_URL =
-  "https://cupa-club-radio.pratikchavan2468.workers.dev";
+    "https://cupa-club-radio.pratikchavan2468.workers.dev";
+
+
+// ---------------------------------
+// SESSION
+// ---------------------------------
+
+const params =
+    new URLSearchParams(
+        window.location.search
+    );
+
+const sessionToken =
+    params.get("session");
+
+
+// ---------------------------------
+// ELEMENTS
+// ---------------------------------
 
 const searchInput =
-  document.getElementById("search-input");
+    document.getElementById("searchInput");
 
 const searchButton =
-  document.getElementById("search-button");
+    document.getElementById("searchButton");
 
-const resultsContainer =
-  document.getElementById("results");
+const resultArea =
+    document.getElementById("result");
 
-const playerContainer =
-  document.getElementById("player-container");
+const messageArea =
+    document.getElementById("message");
 
 
-async function searchSongs() {
+// ---------------------------------
+// BASIC HELPERS
+// ---------------------------------
 
-  const query =
-    searchInput.value.trim();
+function showMessage(message) {
 
-  if (!query) {
-    return;
-  }
-
-  resultsContainer.innerHTML =
-    "<p>Finding the best match... 🎧</p>";
-
-  try {
-
-    const response =
-      await fetch(
-        `${WORKER_URL}/search?q=${encodeURIComponent(
-          query
-        )}`
-      );
-
-    const data =
-      await response.json();
-
-    if (!response.ok) {
-
-      throw new Error(
-        data.error ||
-        "Search failed"
-      );
-
+    if (messageArea) {
+        messageArea.textContent =
+            message;
     }
-
-    displayBestResult(
-      data.results || []
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    resultsContainer.innerHTML =
-      "<p>Something went wrong. Please try again.</p>";
-
-  }
-
-}
-
-
-function displayBestResult(results) {
-
-  if (!results.length) {
-
-    resultsContainer.innerHTML =
-      "<p>No song found. Try another search.</p>";
-
-    return;
-
-  }
-
-  const song =
-    results[0];
-
-  resultsContainer.innerHTML =
-    "";
-
-  const card =
-    document.createElement("div");
-
-  card.className =
-    "song-card";
-
-  card.innerHTML = `
-    <div class="song-info">
-      <h3>${escapeHTML(
-        song.title
-      )}</h3>
-
-      <p>${escapeHTML(
-        song.channel
-      )}</p>
-    </div>
-
-    <button class="request-button">
-      Request Song
-    </button>
-  `;
-
-
-  const requestButton =
-    card.querySelector(
-      ".request-button"
-    );
-
-
-  requestButton.addEventListener(
-    "click",
-    () => {
-
-      requestSong(
-        song,
-        requestButton
-      );
-
-    }
-  );
-
-
-  resultsContainer.appendChild(
-    card
-  );
-
-}
-
-
-async function requestSong(
-  song,
-  button
-) {
-
-  button.disabled =
-    true;
-
-  button.textContent =
-    "Sending...";
-
-
-  try {
-
-    const response =
-      await fetch(
-        `${WORKER_URL}/request`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-
-          body: JSON.stringify({
-
-            videoId:
-              song.videoId,
-
-            title:
-              song.title,
-
-            channel:
-              song.channel
-
-          })
-
-        }
-      );
-
-
-    const data =
-      await response.json();
-
-
-    /*
-     * QUEUE FULL
-     */
-
-    if (
-      response.status === 429
-    ) {
-
-      resultsContainer.innerHTML = `
-        <div class="request-success">
-
-          <h3>
-            Current queue is full ☕
-          </h3>
-
-          <p>
-            We've already got 5 songs lined up.
-          </p>
-
-          <small>
-            Thanks for understanding. Try again
-            in a little while. 🎧
-          </small>
-
-        </div>
-      `;
-
-      return;
-
-    }
-
-
-    if (!response.ok) {
-
-      throw new Error(
-        data.error ||
-        "Could not request song"
-      );
-
-    }
-
-
-    /*
-     * SUCCESS
-     */
-
-    const position =
-      data.queuePosition;
-
-
-    resultsContainer.innerHTML = `
-      <div class="request-success">
-
-        <h3>
-          Song requested! 🎧
-        </h3>
-
-        <p>
-          ${escapeHTML(
-            song.title
-          )}
-        </p>
-
-        <small>
-          You're #${position} in the queue.
-        </small>
-
-      </div>
-    `;
-
-
-    /*
-     * Customer phone never plays
-     * the song.
-     */
-
-    playerContainer.innerHTML =
-      "";
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    button.disabled =
-      false;
-
-    button.textContent =
-      "Request Song";
-
-
-    resultsContainer.innerHTML = `
-      <div class="request-success">
-
-        <h3>
-          Couldn't send request
-        </h3>
-
-        <p>
-          Please try again in a moment.
-        </p>
-
-      </div>
-    `;
-
-  }
 
 }
 
 
 function escapeHTML(text) {
 
-  const div =
-    document.createElement(
-      "div"
-    );
+    const div =
+        document.createElement("div");
 
-  div.textContent =
-    text;
+    div.textContent =
+        text;
 
-  return div.innerHTML;
+    return div.innerHTML;
 
 }
 
 
-searchButton.addEventListener(
-  "click",
-  searchSongs
-);
+// ---------------------------------
+// CHECK SESSION
+// ---------------------------------
 
+async function validateSession() {
 
-searchInput.addEventListener(
-  "keydown",
-  (event) => {
+    if (!sessionToken) {
 
-    if (
-      event.key === "Enter"
-    ) {
+        showMessage(
+            "Please scan the Cupa Club QR code first."
+        );
 
-      searchSongs();
+        if (searchButton) {
+            searchButton.disabled = true;
+        }
+
+        if (searchInput) {
+            searchInput.disabled = true;
+        }
+
+        return false;
 
     }
 
-  }
-);
+
+    try {
+
+        const response =
+            await fetch(
+                `${WORKER_URL}/qr/validate?token=${encodeURIComponent(
+                    sessionToken
+                )}`
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !data.valid
+        ) {
+
+            showMessage(
+                "This QR session has expired. Please scan the new Cupa Club QR."
+            );
+
+            if (searchButton) {
+                searchButton.disabled = true;
+            }
+
+            if (searchInput) {
+                searchInput.disabled = true;
+            }
+
+            return false;
+
+        }
+
+
+        return true;
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage(
+            "Couldn't connect to Cupa Club. Please try again."
+        );
+
+        return false;
+
+    }
+
+}
+
+
+// ---------------------------------
+// SEARCH
+// ---------------------------------
+
+async function searchSongs() {
+
+    const query =
+        searchInput.value.trim();
+
+
+    if (!query) {
+
+        showMessage(
+            "Type a song name first."
+        );
+
+        return;
+
+    }
+
+
+    const sessionValid =
+        await validateSession();
+
+
+    if (!sessionValid) {
+        return;
+    }
+
+
+    searchButton.disabled = true;
+
+    showMessage(
+        "Searching..."
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${WORKER_URL}/search?q=${encodeURIComponent(
+                    query
+                )}`
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Search failed."
+            );
+
+        }
+
+
+        if (
+            !data.items ||
+            data.items.length === 0
+        ) {
+
+            showMessage(
+                "Couldn't find that song. Try another search."
+            );
+
+            searchButton.disabled = false;
+
+            return;
+
+        }
+
+
+        const song =
+            data.items[0];
+
+
+        resultArea.innerHTML = `
+
+            <div class="song-result">
+
+                <div class="song-title">
+                    ${escapeHTML(
+                        song.title
+                    )}
+                </div>
+
+                <div class="song-channel">
+                    ${escapeHTML(
+                        song.channel || ""
+                    )}
+                </div>
+
+                <button
+                    id="requestButton"
+                    type="button"
+                >
+                    Request this song ☕
+                </button>
+
+            </div>
+
+        `;
+
+
+        document
+            .getElementById(
+                "requestButton"
+            )
+            .addEventListener(
+                "click",
+                () => requestSong(song)
+            );
+
+
+        showMessage(
+            "Found it. Ready to request?"
+        );
+
+
+        searchButton.disabled = false;
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage(
+            "Couldn't search right now. Please try again."
+        );
+
+        searchButton.disabled = false;
+
+    }
+
+}
+
+
+// ---------------------------------
+// REQUEST SONG
+// ---------------------------------
+
+async function requestSong(song) {
+
+    const requestButton =
+        document.getElementById(
+            "requestButton"
+        );
+
+
+    if (requestButton) {
+        requestButton.disabled = true;
+    }
+
+
+    showMessage(
+        "Sending your song to Cupa Club..."
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${WORKER_URL}/request`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        videoId:
+                            song.videoId,
+
+                        title:
+                            song.title,
+
+                        channel:
+                            song.channel,
+
+                        sessionToken:
+                            sessionToken
+
+                    })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        // ---------------------------------
+        // SESSION EXPIRED / USED
+        // ---------------------------------
+
+        if (
+            response.status === 403 ||
+            response.status === 410
+        ) {
+
+            showMessage(
+                "This QR session has expired. Please scan the new Cupa Club QR."
+            );
+
+            if (searchButton) {
+                searchButton.disabled = true;
+            }
+
+            if (searchInput) {
+                searchInput.disabled = true;
+            }
+
+            if (requestButton) {
+                requestButton.disabled = true;
+            }
+
+            return;
+
+        }
+
+
+        // ---------------------------------
+        // QUEUE FULL
+        // ---------------------------------
+
+        if (
+            response.status === 429
+        ) {
+
+            showMessage(
+                "We're full right now ☕ Please wait for a spot to open."
+            );
+
+            if (requestButton) {
+                requestButton.disabled = false;
+            }
+
+            return;
+
+        }
+
+
+        // ---------------------------------
+        // OTHER ERROR
+        // ---------------------------------
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Request failed."
+            );
+
+        }
+
+
+        // ---------------------------------
+        // SUCCESS
+        // ---------------------------------
+
+        showMessage(
+            `Your song is in the queue! 🎧 You're #${data.position || "next"} in line.`
+        );
+
+
+        /*
+         * This QR session is now used.
+         * Prevent another request from
+         * this customer page.
+         */
+
+        if (searchButton) {
+            searchButton.disabled = true;
+        }
+
+        if (searchInput) {
+            searchInput.disabled = true;
+        }
+
+        if (requestButton) {
+            requestButton.disabled = true;
+        }
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage(
+            "Couldn't send request. Please try again."
+        );
+
+        if (requestButton) {
+            requestButton.disabled = false;
+        }
+
+    }
+
+}
+
+
+// ---------------------------------
+// EVENTS
+// ---------------------------------
+
+if (searchButton) {
+
+    searchButton.addEventListener(
+        "click",
+        searchSongs
+    );
+
+}
+
+
+if (searchInput) {
+
+    searchInput.addEventListener(
+        "keydown",
+        (event) => {
+
+            if (
+                event.key === "Enter"
+            ) {
+
+                searchSongs();
+
+            }
+
+        }
+    );
+
+}
+
+
+// ---------------------------------
+// START
+// ---------------------------------
+
+validateSession();
