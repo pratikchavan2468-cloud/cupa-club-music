@@ -78,6 +78,41 @@
             height: 90%;
         }
 
+        .queue-full {
+            width: min(80vw, 420px);
+            min-height: min(80vw, 420px);
+
+            margin: 0 auto;
+
+            background: #111111;
+            color: white;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+
+            border-radius: 20px;
+
+            padding: 30px;
+        }
+
+        .queue-full-icon {
+            font-size: 52px;
+            margin-bottom: 15px;
+        }
+
+        .queue-full h2 {
+            margin: 0 0 10px;
+            font-size: 28px;
+        }
+
+        .queue-full p {
+            margin: 0;
+            color: #bbbbbb;
+            line-height: 1.5;
+        }
+
         .instruction {
             margin-top: 25px;
 
@@ -99,6 +134,10 @@
             color: #999;
         }
 
+        .hidden {
+            display: none !important;
+        }
+
     </style>
 </head>
 
@@ -114,28 +153,61 @@
         Pick a song while you wait ☕🎧
     </div>
 
-    <div class="qr-box">
 
-        <canvas id="qr"></canvas>
+    <!-- QR AREA -->
+
+    <div id="qr-area">
+
+        <div class="qr-box">
+
+            <canvas id="qr"></canvas>
+
+        </div>
+
+        <div class="instruction">
+            Scan to pick your song
+        </div>
+
+        <div id="timer" class="timer">
+            Preparing QR...
+        </div>
 
     </div>
 
-    <div class="instruction">
-        Scan to pick your song
+
+    <!-- QUEUE FULL AREA -->
+
+    <div
+        id="queue-full-area"
+        class="queue-full hidden"
+    >
+
+        <div class="queue-full-icon">
+            ☕
+        </div>
+
+        <h2>
+            Queue Full
+        </h2>
+
+        <p>
+            We've got 5 songs lined up right now.
+            <br>
+            Please check back in a little while.
+        </p>
+
     </div>
 
-    <div id="timer" class="timer">
-        Preparing QR...
-    </div>
 
     <div id="status" class="status">
-        Creating secure session...
+        Checking Cupa Club queue...
     </div>
 
 </main>
 
 
 <!-- Free QR code library -->
+
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 
@@ -147,6 +219,16 @@ const WORKER_URL =
 
 const CUSTOMER_URL =
     "https://cupa-club-music.pratikchavan2468.workers.dev";
+
+
+const qrArea =
+    document.getElementById("qr-area");
+
+
+const queueFullArea =
+    document.getElementById(
+        "queue-full-area"
+    );
 
 
 const qrCanvas =
@@ -165,18 +247,142 @@ let expiresAt = null;
 
 let countdownTimer = null;
 
+let queueCheckTimer = null;
+
+let creatingQR = false;
+
+
+// ---------------------------------
+// CHECK QUEUE STATUS
+// ---------------------------------
+
+async function checkQueueStatus() {
+
+    try {
+
+        const response =
+            await fetch(
+                `${WORKER_URL}/qr/status`
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Could not check queue."
+            );
+
+        }
+
+
+        if (data.queueFull) {
+
+            showQueueFull();
+
+        } else {
+
+            showQR();
+
+        }
+
+
+    } catch (error) {
+
+        console.error(error);
+
+
+        status.textContent =
+            "Connection problem. Retrying...";
+
+    }
+
+}
+
+
+// ---------------------------------
+// SHOW QUEUE FULL
+// ---------------------------------
+
+function showQueueFull() {
+
+    clearInterval(
+        countdownTimer
+    );
+
+
+    qrArea.classList.add(
+        "hidden"
+    );
+
+
+    queueFullArea.classList.remove(
+        "hidden"
+    );
+
+
+    status.textContent =
+        "Waiting for a spot to open...";
+
+}
+
+
+// ---------------------------------
+// SHOW QR
+// ---------------------------------
+
+function showQR() {
+
+    queueFullArea.classList.add(
+        "hidden"
+    );
+
+
+    qrArea.classList.remove(
+        "hidden"
+    );
+
+
+    status.textContent =
+        "Creating secure session...";
+
+
+    /*
+     * Only create a new QR if we
+     * don't currently have one.
+     */
+
+    if (!expiresAt) {
+
+        createQRSession();
+
+    }
+
+}
+
+
+// ---------------------------------
+// CREATE QR SESSION
+// ---------------------------------
 
 async function createQRSession() {
 
-    clearInterval(countdownTimer);
+    if (creatingQR) return;
+
+    creatingQR = true;
+
+
+    clearInterval(
+        countdownTimer
+    );
 
 
     timer.textContent =
         "Creating new QR...";
-
-
-    status.textContent =
-        "Preparing secure session...";
 
 
     try {
@@ -194,11 +400,30 @@ async function createQRSession() {
             await response.json();
 
 
+        /*
+         * Queue filled between the
+         * status check and QR creation.
+         */
+
+        if (
+            response.status === 429 ||
+            data.queueFull
+        ) {
+
+            expiresAt = null;
+
+            showQueueFull();
+
+            return;
+
+        }
+
+
         if (!response.ok) {
 
             throw new Error(
                 data.error ||
-                "Could not create QR session."
+                "Could not create QR."
             );
 
         }
@@ -237,27 +462,31 @@ async function createQRSession() {
         console.error(error);
 
 
+        expiresAt = null;
+
+
         status.textContent =
             "Could not create QR. Retrying...";
 
 
-        timer.textContent =
-            "Please wait";
+    } finally {
 
-
-        setTimeout(
-            createQRSession,
-            5000
-        );
+        creatingQR = false;
 
     }
 
 }
 
 
+// ---------------------------------
+// COUNTDOWN
+// ---------------------------------
+
 function startCountdown() {
 
-    clearInterval(countdownTimer);
+    clearInterval(
+        countdownTimer
+    );
 
 
     countdownTimer =
@@ -269,18 +498,27 @@ function startCountdown() {
                     Date.now();
 
 
-                if (remaining <= 0) {
+                if (
+                    remaining <= 0
+                ) {
 
                     clearInterval(
                         countdownTimer
                     );
 
 
+                    expiresAt = null;
+
+
                     timer.textContent =
                         "Refreshing QR...";
 
 
-                    createQRSession();
+                    /*
+                     * Check the queue first.
+                     */
+
+                    checkQueueStatus();
 
 
                     return;
@@ -312,7 +550,6 @@ function startCountdown() {
                 timer.textContent =
                     `Valid for ${minutes}:${displaySeconds}`;
 
-
             },
             250
         );
@@ -320,7 +557,26 @@ function startCountdown() {
 }
 
 
-createQRSession();
+// ---------------------------------
+// LIVE QUEUE CHECK
+// ---------------------------------
+
+queueCheckTimer =
+    setInterval(
+        async () => {
+
+            await checkQueueStatus();
+
+        },
+        3000
+    );
+
+
+// ---------------------------------
+// INITIAL LOAD
+// ---------------------------------
+
+checkQueueStatus();
 
 </script>
 
