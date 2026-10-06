@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Cupa Club QR</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+
+            background: #ffffff;
+            color: #111111;
+
+            font-family: Arial, sans-serif;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            padding: 20px;
+        }
+
+        .qr-app {
+            width: 100%;
+            max-width: 520px;
+
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 34px;
+            font-weight: 900;
+
+            letter-spacing: -1px;
+
+            margin-bottom: 8px;
+        }
+
+        .logo span {
+            color: #ff6a00;
+        }
+
+        .subtitle {
+            color: #777;
+            margin-bottom: 30px;
+        }
+
+        .qr-box {
+            width: min(80vw, 420px);
+            height: min(80vw, 420px);
+
+            margin: 0 auto;
+
+            background: white;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            border: 1px solid #eeeeee;
+            border-radius: 20px;
+        }
+
+        #qr {
+            width: 90%;
+            height: 90%;
+        }
+
+        .instruction {
+            margin-top: 25px;
+
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .timer {
+            margin-top: 10px;
+
+            font-size: 16px;
+            color: #777;
+        }
+
+        .status {
+            margin-top: 20px;
+
+            font-size: 14px;
+            color: #999;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<main class="qr-app">
+
+    <div class="logo">
+        CUPA<span>CLUB</span>
+    </div>
+
+    <div class="subtitle">
+        Pick a song while you wait ☕🎧
+    </div>
+
+    <div class="qr-box">
+
+        <canvas id="qr"></canvas>
+
+    </div>
+
+    <div class="instruction">
+        Scan to pick your song
+    </div>
+
+    <div id="timer" class="timer">
+        Preparing QR...
+    </div>
+
+    <div id="status" class="status">
+        Creating secure session...
+    </div>
+
+</main>
+
+
+<!-- Free QR code library -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+
+<script>
+
+const WORKER_URL =
+    "https://cupa-club-radio.pratikchavan2468.workers.dev";
+
+
+const CUSTOMER_URL =
+    "https://cupa-club-music.pratikchavan2468.workers.dev";
+
+
+const qrCanvas =
+    document.getElementById("qr");
+
+
+const timer =
+    document.getElementById("timer");
+
+
+const status =
+    document.getElementById("status");
+
+
+let expiresAt = null;
+
+let countdownTimer = null;
+
+
+async function createQRSession() {
+
+    clearInterval(countdownTimer);
+
+
+    timer.textContent =
+        "Creating new QR...";
+
+
+    status.textContent =
+        "Preparing secure session...";
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${WORKER_URL}/qr/create`,
+                {
+                    method: "POST"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Could not create QR session."
+            );
+
+        }
+
+
+        expiresAt =
+            data.expiresAt;
+
+
+        const customerUrl =
+            `${CUSTOMER_URL}/?session=${encodeURIComponent(
+                data.token
+            )}`;
+
+
+        await QRCode.toCanvas(
+            qrCanvas,
+            customerUrl,
+            {
+                width: 380,
+                margin: 2,
+                errorCorrectionLevel: "M"
+            }
+        );
+
+
+        status.textContent =
+            "QR is active";
+
+
+        startCountdown();
+
+
+    } catch (error) {
+
+        console.error(error);
+
+
+        status.textContent =
+            "Could not create QR. Retrying...";
+
+
+        timer.textContent =
+            "Please wait";
+
+
+        setTimeout(
+            createQRSession,
+            5000
+        );
+
+    }
+
+}
+
+
+function startCountdown() {
+
+    clearInterval(countdownTimer);
+
+
+    countdownTimer =
+        setInterval(
+            () => {
+
+                const remaining =
+                    expiresAt -
+                    Date.now();
+
+
+                if (remaining <= 0) {
+
+                    clearInterval(
+                        countdownTimer
+                    );
+
+
+                    timer.textContent =
+                        "Refreshing QR...";
+
+
+                    createQRSession();
+
+
+                    return;
+
+                }
+
+
+                const seconds =
+                    Math.ceil(
+                        remaining / 1000
+                    );
+
+
+                const minutes =
+                    Math.floor(
+                        seconds / 60
+                    );
+
+
+                const displaySeconds =
+                    String(
+                        seconds % 60
+                    ).padStart(
+                        2,
+                        "0"
+                    );
+
+
+                timer.textContent =
+                    `Valid for ${minutes}:${displaySeconds}`;
+
+
+            },
+            250
+        );
+
+}
+
+
+createQRSession();
+
+</script>
+
+</body>
+</html>
