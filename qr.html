@@ -120,13 +120,6 @@
             font-weight: 700;
         }
 
-        .timer {
-            margin-top: 10px;
-
-            font-size: 16px;
-            color: #777;
-        }
-
         .status {
             margin-top: 20px;
 
@@ -166,10 +159,6 @@
 
         <div class="instruction">
             Scan to pick your song
-        </div>
-
-        <div id="timer" class="timer">
-            Preparing QR...
         </div>
 
     </div>
@@ -227,18 +216,11 @@ const queueFullArea =
 const qrCanvas =
     document.getElementById("qr");
 
-const timer =
-    document.getElementById("timer");
-
 const status =
     document.getElementById("status");
 
 
-let expiresAt = null;
-
 let currentToken = null;
-
-let countdownTimer = null;
 
 let queueCheckTimer = null;
 
@@ -312,10 +294,6 @@ async function checkQueueStatus() {
 
 function showQueueFull() {
 
-    clearInterval(
-        countdownTimer
-    );
-
     qrArea.classList.add(
         "hidden"
     );
@@ -344,11 +322,6 @@ async function createQRSession() {
     creatingQR = true;
 
 
-    clearInterval(
-        countdownTimer
-    );
-
-
     qrArea.classList.remove(
         "hidden"
     );
@@ -357,9 +330,6 @@ async function createQRSession() {
         "hidden"
     );
 
-
-    timer.textContent =
-        "Creating new QR...";
 
     status.textContent =
         "Creating secure session...";
@@ -385,8 +355,6 @@ async function createQRSession() {
             data.queueFull
         ) {
 
-            expiresAt = null;
-
             currentToken = null;
 
             showQueueFull();
@@ -405,9 +373,6 @@ async function createQRSession() {
 
         }
 
-
-        expiresAt =
-            data.expiresAt;
 
         currentToken =
             data.token;
@@ -434,21 +399,12 @@ async function createQRSession() {
             "QR is active";
 
 
-        startCountdown();
-
-
     } catch (error) {
 
         console.error(error);
 
 
-        expiresAt = null;
-
         currentToken = null;
-
-
-        timer.textContent =
-            "Retrying...";
 
 
         status.textContent =
@@ -465,7 +421,7 @@ async function createQRSession() {
 
 
 // ---------------------------------
-// CHECK CURRENT SESSION
+// CHECK CURRENT QR SESSION
 // ---------------------------------
 
 async function checkCurrentSession() {
@@ -499,7 +455,9 @@ async function checkCurrentSession() {
 
 
         /*
-         * QR was used or expired.
+         * QR was used.
+         *
+         * Create a completely new QR.
          */
 
         if (
@@ -507,23 +465,12 @@ async function checkCurrentSession() {
             !data.valid
         ) {
 
-            clearInterval(
-                countdownTimer
-            );
-
-
-            expiresAt = null;
-
             currentToken = null;
 
 
-            timer.textContent =
-                "Refreshing QR...";
+            status.textContent =
+                "Creating new QR...";
 
-
-            /*
-             * Directly create the next QR.
-             */
 
             await createQRSession();
 
@@ -536,14 +483,6 @@ async function checkCurrentSession() {
         /*
          * QR is still active.
          */
-
-        if (data.expiresAt) {
-
-            expiresAt =
-                data.expiresAt;
-
-        }
-
 
         qrArea.classList.remove(
             "hidden"
@@ -567,94 +506,6 @@ async function checkCurrentSession() {
         checkingSession = false;
 
     }
-
-}
-
-
-// ---------------------------------
-// COUNTDOWN
-// ---------------------------------
-
-function startCountdown() {
-
-    clearInterval(
-        countdownTimer
-    );
-
-
-    countdownTimer =
-        setInterval(
-            async () => {
-
-                if (!expiresAt) {
-                    return;
-                }
-
-
-                const remaining =
-                    expiresAt -
-                    Date.now();
-
-
-                if (
-                    remaining <= 0
-                ) {
-
-                    clearInterval(
-                        countdownTimer
-                    );
-
-
-                    expiresAt = null;
-
-                    currentToken = null;
-
-
-                    timer.textContent =
-                        "Refreshing QR...";
-
-
-                    /*
-                     * Directly check the queue.
-                     * If there is room, this will
-                     * immediately create a new QR.
-                     */
-
-                    await checkQueueStatus();
-
-
-                    return;
-
-                }
-
-
-                const seconds =
-                    Math.ceil(
-                        remaining / 1000
-                    );
-
-
-                const minutes =
-                    Math.floor(
-                        seconds / 60
-                    );
-
-
-                const displaySeconds =
-                    String(
-                        seconds % 60
-                    ).padStart(
-                        2,
-                        "0"
-                    );
-
-
-                timer.textContent =
-                    `Valid for ${minutes}:${displaySeconds}`;
-
-            },
-            250
-        );
 
 }
 
