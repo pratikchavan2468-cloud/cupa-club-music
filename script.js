@@ -36,21 +36,6 @@ const results =
 
 
 // ---------------------------------
-// MESSAGE
-// ---------------------------------
-
-function showMessage(message) {
-
-    results.innerHTML = `
-        <div class="message">
-            ${escapeHTML(message)}
-        </div>
-    `;
-
-}
-
-
-// ---------------------------------
 // ESCAPE HTML
 // ---------------------------------
 
@@ -63,6 +48,21 @@ function escapeHTML(text) {
         text;
 
     return div.innerHTML;
+
+}
+
+
+// ---------------------------------
+// SHOW MESSAGE
+// ---------------------------------
+
+function showMessage(message) {
+
+    results.innerHTML = `
+        <div class="message">
+            ${escapeHTML(message)}
+        </div>
+    `;
 
 }
 
@@ -198,9 +198,13 @@ async function searchSongs() {
         }
 
 
+        // ---------------------------------
+        // WORKER RETURNS "results"
+        // ---------------------------------
+
         if (
-            !data.items ||
-            data.items.length === 0
+            !data.results ||
+            data.results.length === 0
         ) {
 
             showMessage(
@@ -214,8 +218,15 @@ async function searchSongs() {
         }
 
 
+        /*
+         * Worker already returns the
+         * results in ranked order.
+         *
+         * We only show the first one.
+         */
+
         const song =
-            data.items[0];
+            data.results[0];
 
 
         results.innerHTML = `
