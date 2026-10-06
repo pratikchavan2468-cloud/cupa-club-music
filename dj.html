@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Cupa Club DJ</title>
 
     <style>
@@ -231,11 +230,7 @@
 
         <div id="player" class="player"></div>
 
-        <button
-            id="next-button"
-            class="next-button"
-            disabled
-        >
+        <button id="next-button" class="next-button" disabled>
             Next Song ⏭
         </button>
 
@@ -265,12 +260,15 @@
 
 </main>
 
+
 <script src="https://www.youtube.com/iframe_api"></script>
+
 
 <script>
 
 const WORKER_URL =
     "https://cupa-club-radio.pratikchavan2468.workers.dev";
+
 
 const startButton =
     document.getElementById("start-button");
@@ -298,17 +296,19 @@ const queueCount =
 
 
 let radioStarted = false;
+
 let currentSong = null;
+
 let youtubePlayer = null;
+
 let polling = false;
+
 let pollTimer = null;
+
 let youtubeReady = false;
+
 let finishingSong = false;
 
-
-/* -------------------------
-   YOUTUBE API READY
-------------------------- */
 
 window.onYouTubeIframeAPIReady = function () {
 
@@ -317,15 +317,82 @@ window.onYouTubeIframeAPIReady = function () {
 };
 
 
-/* -------------------------
-   START RADIO
-------------------------- */
+startButton.addEventListener("click", async () => {
 
-startButton.addEventListener("click", () => {
+    if (radioStarted) return;
 
-    if (radioStarted) {
+
+    startButton.disabled = true;
+
+    startButton.textContent =
+        "Starting radio...";
+
+
+    status.textContent =
+        "Preparing Cupa Club Radio...";
+
+
+    /*
+     * Recover any songs that were previously
+     * marked as playing but were left behind
+     * by an old DJ session.
+     */
+
+    try {
+
+        const response = await fetch(
+            `${WORKER_URL}/request/recover`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+
+        const data = await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Could not recover old requests."
+            );
+
+        }
+
+
+        console.log(
+            "Old playing requests recovered."
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Recovery failed:",
+            error
+        );
+
+        status.textContent =
+            "Could not start radio. Please try again.";
+
+        startButton.disabled = false;
+
+        startButton.textContent =
+            "Start Cupa Club Radio";
+
         return;
+
     }
+
+
+    /*
+     * Recovery succeeded.
+     * Now start the radio.
+     */
 
     radioStarted = true;
 
@@ -337,21 +404,20 @@ startButton.addEventListener("click", () => {
     status.textContent =
         "Waiting for requests... 🎧";
 
+
     createPlayer();
 
     checkQueue();
 
-    pollTimer = setInterval(
-        checkQueue,
-        3000
-    );
+
+    pollTimer =
+        setInterval(
+            checkQueue,
+            3000
+        );
 
 });
 
-
-/* -------------------------
-   CREATE PLAYER ONCE
-------------------------- */
 
 function createPlayer() {
 
@@ -359,8 +425,10 @@ function createPlayer() {
         return;
     }
 
+
     playerContainer.innerHTML =
         `<div id="youtube-player"></div>`;
+
 
     youtubePlayer =
         new YT.Player(
@@ -400,45 +468,37 @@ function createPlayer() {
 }
 
 
-/* -------------------------
-   PLAYER READY
-------------------------- */
-
 function onPlayerReady(event) {
-
-    /*
-     * The user has already tapped
-     * Start Cupa Club Radio.
-     *
-     * The player is now ready for
-     * controlled playback.
-     */
 
     checkQueue();
 
 }
 
 
-/* -------------------------
-   CHECK QUEUE
-------------------------- */
-
 async function checkQueue() {
 
-    if (!radioStarted || polling) {
+    if (
+        !radioStarted ||
+        polling
+    ) {
         return;
     }
 
+
     polling = true;
+
 
     try {
 
-        const response = await fetch(
-            `${WORKER_URL}/requests`
-        );
+        const response =
+            await fetch(
+                `${WORKER_URL}/requests`
+            );
+
 
         const data =
             await response.json();
+
 
         if (!response.ok) {
 
@@ -449,16 +509,13 @@ async function checkQueue() {
 
         }
 
+
         const requests =
             data.requests || [];
 
+
         renderQueue(requests);
 
-
-        /*
-         * Nothing is playing.
-         * Start the first request.
-         */
 
         if (
             !currentSong &&
@@ -470,6 +527,7 @@ async function checkQueue() {
             );
 
         }
+
 
     } catch (error) {
 
@@ -487,42 +545,41 @@ async function checkQueue() {
 }
 
 
-/* -------------------------
-   START SONG
-------------------------- */
-
 async function startSong(request) {
 
-    if (!youtubePlayer || currentSong) {
+    if (
+        !youtubePlayer ||
+        currentSong
+    ) {
         return;
     }
+
 
     currentSong = request;
 
     finishingSong = false;
 
+
     status.textContent =
         "Now playing 🎵";
+
 
     songTitle.textContent =
         request.title;
 
+
     songChannel.textContent =
         request.channel || "";
 
+
     nextButton.disabled = false;
 
-
-    /*
-     * Tell server this song is playing.
-     */
 
     try {
 
         await fetch(
             `${WORKER_URL}/request/start`,
             {
-
                 method: "POST",
 
                 headers: {
@@ -531,8 +588,7 @@ async function startSong(request) {
                 },
 
                 body: JSON.stringify({
-                    id:
-                        request.id
+                    id: request.id
                 })
 
             }
@@ -548,15 +604,6 @@ async function startSong(request) {
     }
 
 
-    /*
-     * IMPORTANT:
-     *
-     * Reuse the SAME YouTube player.
-     *
-     * This is much better for autoplay
-     * than destroying and recreating it.
-     */
-
     youtubePlayer.loadVideoById(
         request.video_id
     );
@@ -564,15 +611,7 @@ async function startSong(request) {
 }
 
 
-/* -------------------------
-   PLAYER STATE CHANGE
-------------------------- */
-
 function onPlayerStateChange(event) {
-
-    /*
-     * ENDED = 0
-     */
 
     if (
         event.data ===
@@ -586,10 +625,6 @@ function onPlayerStateChange(event) {
 }
 
 
-/* -------------------------
-   PLAYER ERROR
-------------------------- */
-
 function onPlayerError(event) {
 
     console.error(
@@ -597,14 +632,11 @@ function onPlayerError(event) {
         event.data
     );
 
+
     finishCurrentSong();
 
 }
 
-
-/* -------------------------
-   NEXT BUTTON
-------------------------- */
 
 nextButton.addEventListener(
     "click",
@@ -617,15 +649,12 @@ nextButton.addEventListener(
             return;
         }
 
+
         finishCurrentSong();
 
     }
 );
 
-
-/* -------------------------
-   FINISH SONG
-------------------------- */
 
 async function finishCurrentSong() {
 
@@ -636,7 +665,9 @@ async function finishCurrentSong() {
         return;
     }
 
+
     finishingSong = true;
+
 
     const finishedSong =
         currentSong;
@@ -646,16 +677,11 @@ async function finishCurrentSong() {
         "Loading next song... 🎵";
 
 
-    /*
-     * Mark previous song as played.
-     */
-
     try {
 
         await fetch(
             `${WORKER_URL}/request/played`,
             {
-
                 method: "POST",
 
                 headers: {
@@ -664,8 +690,7 @@ async function finishCurrentSong() {
                 },
 
                 body: JSON.stringify({
-                    id:
-                        finishedSong.id
+                    id: finishedSong.id
                 })
 
             }
@@ -681,21 +706,10 @@ async function finishCurrentSong() {
     }
 
 
-    /*
-     * Clear current song.
-     */
-
     currentSong = null;
 
     nextButton.disabled = true;
 
-
-    /*
-     * Get the next song.
-     *
-     * We wait briefly for D1 to finish
-     * updating the previous request.
-     */
 
     setTimeout(
         async () => {
@@ -711,17 +725,14 @@ async function finishCurrentSong() {
 }
 
 
-/* -------------------------
-   RENDER QUEUE
-------------------------- */
-
 function renderQueue(requests) {
 
     const pending =
         requests.filter(
             request =>
                 !currentSong ||
-                request.id !== currentSong.id
+                request.id !==
+                    currentSong.id
         );
 
 
@@ -753,12 +764,12 @@ function renderQueue(requests) {
                     "div"
                 );
 
+
             item.className =
                 "queue-item";
 
 
             item.innerHTML = `
-
                 <div class="queue-number">
                     ${index + 1}
                 </div>
@@ -781,7 +792,9 @@ function renderQueue(requests) {
             `;
 
 
-            queueList.appendChild(item);
+            queueList.appendChild(
+                item
+            );
 
         }
     );
@@ -789,16 +802,10 @@ function renderQueue(requests) {
 }
 
 
-/* -------------------------
-   ESCAPE HTML
-------------------------- */
-
 function escapeHTML(text) {
 
     const div =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     div.textContent =
         text;
