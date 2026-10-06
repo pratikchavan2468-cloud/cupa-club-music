@@ -265,7 +265,6 @@
 
 </main>
 
-
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <script>
@@ -288,7 +287,7 @@ const songTitle =
 const songChannel =
     document.getElementById("song-channel");
 
-const player =
+const playerContainer =
     document.getElementById("player");
 
 const queueList =
@@ -338,6 +337,8 @@ startButton.addEventListener("click", () => {
     status.textContent =
         "Waiting for requests... 🎧";
 
+    createPlayer();
+
     checkQueue();
 
     pollTimer = setInterval(
@@ -349,18 +350,73 @@ startButton.addEventListener("click", () => {
 
 
 /* -------------------------
-   NEXT BUTTON
+   CREATE PLAYER ONCE
 ------------------------- */
 
-nextButton.addEventListener("click", () => {
+function createPlayer() {
 
-    if (!currentSong) {
+    if (!youtubeReady || youtubePlayer) {
         return;
     }
 
-    skipCurrentSong();
+    playerContainer.innerHTML =
+        `<div id="youtube-player"></div>`;
 
-});
+    youtubePlayer =
+        new YT.Player(
+            "youtube-player",
+            {
+
+                width: "100%",
+
+                height: "100%",
+
+                playerVars: {
+
+                    autoplay: 0,
+
+                    rel: 0,
+
+                    playsinline: 1
+
+                },
+
+                events: {
+
+                    onReady:
+                        onPlayerReady,
+
+                    onStateChange:
+                        onPlayerStateChange,
+
+                    onError:
+                        onPlayerError
+
+                }
+
+            }
+        );
+
+}
+
+
+/* -------------------------
+   PLAYER READY
+------------------------- */
+
+function onPlayerReady(event) {
+
+    /*
+     * The user has already tapped
+     * Start Cupa Club Radio.
+     *
+     * The player is now ready for
+     * controlled playback.
+     */
+
+    checkQueue();
+
+}
 
 
 /* -------------------------
@@ -400,8 +456,8 @@ async function checkQueue() {
 
 
         /*
-         * If nothing is playing,
-         * start the first pending song.
+         * Nothing is playing.
+         * Start the first request.
          */
 
         if (
@@ -409,7 +465,7 @@ async function checkQueue() {
             requests.length > 0
         ) {
 
-            await startNextSong(
+            await startSong(
                 requests[0]
             );
 
@@ -432,12 +488,12 @@ async function checkQueue() {
 
 
 /* -------------------------
-   START NEXT SONG
+   START SONG
 ------------------------- */
 
-async function startNextSong(request) {
+async function startSong(request) {
 
-    if (currentSong) {
+    if (!youtubePlayer || currentSong) {
         return;
     }
 
@@ -458,7 +514,7 @@ async function startNextSong(request) {
 
 
     /*
-     * Mark song as playing.
+     * Tell server this song is playing.
      */
 
     try {
@@ -466,6 +522,7 @@ async function startNextSong(request) {
         await fetch(
             `${WORKER_URL}/request/start`,
             {
+
                 method: "POST",
 
                 headers: {
@@ -474,8 +531,10 @@ async function startNextSong(request) {
                 },
 
                 body: JSON.stringify({
-                    id: request.id
+                    id:
+                        request.id
                 })
+
             }
         );
 
@@ -490,81 +549,17 @@ async function startNextSong(request) {
 
 
     /*
-     * Wait for YouTube API.
+     * IMPORTANT:
+     *
+     * Reuse the SAME YouTube player.
+     *
+     * This is much better for autoplay
+     * than destroying and recreating it.
      */
 
-    if (!youtubeReady) {
-
-        setTimeout(
-            () => {
-
-                if (currentSong?.id === request.id) {
-
-                    startNextSong(request);
-
-                }
-
-            },
-            500
-        );
-
-        return;
-
-    }
-
-
-    player.innerHTML =
-        `<div id="youtube-player"></div>`;
-
-
-    youtubePlayer =
-        new YT.Player(
-            "youtube-player",
-            {
-
-                width: "100%",
-
-                height: "100%",
-
-                videoId:
-                    request.video_id,
-
-                playerVars: {
-
-                    autoplay: 1,
-
-                    rel: 0,
-
-                    playsinline: 1
-
-                },
-
-                events: {
-
-                    onReady:
-                        onPlayerReady,
-
-                    onStateChange:
-                        onPlayerStateChange,
-
-                    onError:
-                        onPlayerError
-
-                }
-
-            }
-        );
-
-}
-
-
-/* -------------------------
-   PLAYER READY
-------------------------- */
-
-function onPlayerReady(event) {
-
-    event.target.playVideo();
+    youtubePlayer.loadVideoById(
+        request.video_id
+    );
 
 }
 
@@ -576,7 +571,7 @@ function onPlayerReady(event) {
 function onPlayerStateChange(event) {
 
     /*
-     * 0 = ENDED
+     * ENDED = 0
      */
 
     if (
@@ -608,108 +603,28 @@ function onPlayerError(event) {
 
 
 /* -------------------------
-   SKIP CURRENT SONG
+   NEXT BUTTON
 ------------------------- */
 
-async function skipCurrentSong() {
+nextButton.addEventListener(
+    "click",
+    () => {
 
-    if (
-        !currentSong ||
-        finishingSong
-    ) {
-        return;
-    }
+        if (
+            !currentSong ||
+            finishingSong
+        ) {
+            return;
+        }
 
-    finishingSong = true;
-
-    const skippedSong =
-        currentSong;
-
-
-    status.textContent =
-        "Skipping... ⏭";
-
-
-    /*
-     * Mark current song as played.
-     */
-
-    try {
-
-        await fetch(
-            `${WORKER_URL}/request/played`,
-            {
-
-                method: "POST",
-
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
-
-                body: JSON.stringify({
-                    id:
-                        skippedSong.id
-                })
-
-            }
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Could not skip song:",
-            error
-        );
+        finishCurrentSong();
 
     }
-
-
-    /*
-     * Destroy current player.
-     */
-
-    if (youtubePlayer) {
-
-        youtubePlayer.destroy();
-
-        youtubePlayer = null;
-
-    }
-
-    player.innerHTML = "";
-
-    currentSong = null;
-
-    nextButton.disabled = true;
-
-    songTitle.textContent =
-        "Loading next song...";
-
-    songChannel.textContent = "";
-
-
-    /*
-     * Give D1 a moment to update,
-     * then load the next request.
-     */
-
-    setTimeout(
-        () => {
-
-            finishingSong = false;
-
-            checkQueue();
-
-        },
-        300
-    );
-
-}
+);
 
 
 /* -------------------------
-   FINISH CURRENT SONG
+   FINISH SONG
 ------------------------- */
 
 async function finishCurrentSong() {
@@ -726,6 +641,14 @@ async function finishCurrentSong() {
     const finishedSong =
         currentSong;
 
+
+    status.textContent =
+        "Loading next song... 🎵";
+
+
+    /*
+     * Mark previous song as played.
+     */
 
     try {
 
@@ -758,39 +681,31 @@ async function finishCurrentSong() {
     }
 
 
-    if (youtubePlayer) {
-
-        youtubePlayer.destroy();
-
-        youtubePlayer = null;
-
-    }
-
-    player.innerHTML = "";
+    /*
+     * Clear current song.
+     */
 
     currentSong = null;
 
     nextButton.disabled = true;
 
-    songTitle.textContent =
-        "Loading next song...";
-
-    songChannel.textContent = "";
-
 
     /*
-     * Automatically load next song.
+     * Get the next song.
+     *
+     * We wait briefly for D1 to finish
+     * updating the previous request.
      */
 
     setTimeout(
-        () => {
+        async () => {
 
             finishingSong = false;
 
-            checkQueue();
+            await checkQueue();
 
         },
-        300
+        250
     );
 
 }
