@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,25 +20,31 @@
 
         .dj-app {
             width: 100%;
-            max-width: 500px;
+            max-width: 520px;
             padding: 30px;
             box-sizing: border-box;
-            text-align: center;
         }
 
         .logo {
+            text-align: center;
             font-size: 28px;
             font-weight: 800;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .logo span {
             color: #ff6a00;
         }
 
+        h1 {
+            text-align: center;
+            margin: 0 0 8px;
+        }
+
         .status {
+            text-align: center;
             color: #aaa;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
         }
 
         button {
@@ -61,32 +66,35 @@
             opacity: 0.6;
         }
 
-        .request {
-            margin-top: 30px;
+        .now-playing {
+            margin-top: 25px;
             padding: 20px;
             background: #1d1d1d;
             border-radius: 16px;
-            text-align: left;
         }
 
-        .request h2 {
-            margin-top: 0;
-            font-size: 18px;
+        .now-playing-label {
+            color: #ff6a00;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .request-title {
+        .song-title {
             font-size: 20px;
             font-weight: 700;
-            margin: 10px 0;
+            margin-top: 8px;
         }
 
-        .request-channel {
+        .song-channel {
             color: #aaa;
             font-size: 14px;
+            margin-top: 5px;
         }
 
         .player {
-            margin-top: 25px;
+            margin-top: 20px;
             width: 100%;
             aspect-ratio: 16 / 9;
             background: black;
@@ -100,204 +108,432 @@
             border: 0;
         }
 
-        .hidden {
-            display: none;
+        .queue {
+            margin-top: 25px;
+        }
+
+        .queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .queue-header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .queue-count {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .queue-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .queue-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px;
+            background: #1d1d1d;
+            border-radius: 12px;
+        }
+
+        .queue-number {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .queue-song {
+            min-width: 0;
+        }
+
+        .queue-song-title {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .queue-song-channel {
+            color: #888;
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .empty-queue {
+            color: #777;
+            text-align: center;
+            padding: 15px;
+            background: #181818;
+            border-radius: 12px;
         }
     </style>
 </head>
 
 <body>
 
-    <main class="dj-app">
+<main class="dj-app">
 
-        <div class="logo">
-            CUPA<span>CLUB</span>
+    <div class="logo">
+        CUPA<span>CLUB</span>
+    </div>
+
+    <h1>DJ Mode 🎧</h1>
+
+    <p id="status" class="status">
+        Radio is stopped.
+    </p>
+
+    <button id="start-button">
+        Start Cupa Club Radio
+    </button>
+
+    <section class="now-playing">
+
+        <div class="now-playing-label">
+            Now Playing
         </div>
 
-        <h1>DJ Mode 🎧</h1>
+        <div id="song-title" class="song-title">
+            Nothing playing
+        </div>
 
-        <p id="status" class="status">
-            Radio is stopped.
-        </p>
+        <div id="song-channel" class="song-channel"></div>
 
-        <button id="start-button">
-            Start Cupa Club Radio
-        </button>
+        <div id="player" class="player"></div>
 
-        <section id="request" class="request hidden">
+    </section>
 
-            <h2>Now Playing</h2>
+    <section class="queue">
 
-            <div id="request-title" class="request-title"></div>
+        <div class="queue-header">
 
-            <div id="request-channel" class="request-channel"></div>
+            <h2>Up Next</h2>
 
-            <div id="player" class="player"></div>
+            <span id="queue-count" class="queue-count">
+                0 / 5
+            </span>
 
-        </section>
+        </div>
 
-    </main>
+        <div id="queue-list" class="queue-list">
 
-    <script>
+            <div class="empty-queue">
+                No songs waiting.
+            </div>
 
-        const WORKER_URL =
-            "https://cupa-club-radio.pratikchavan2468.workers.dev";
+        </div>
 
-        const startButton =
-            document.getElementById("start-button");
+    </section>
 
-        const status =
-            document.getElementById("status");
+</main>
 
-        const requestBox =
-            document.getElementById("request");
+<script>
 
-        const requestTitle =
-            document.getElementById("request-title");
+const WORKER_URL =
+    "https://cupa-club-radio.pratikchavan2468.workers.dev";
 
-        const requestChannel =
-            document.getElementById("request-channel");
+const startButton =
+    document.getElementById("start-button");
 
-        const player =
-            document.getElementById("player");
+const status =
+    document.getElementById("status");
 
-        let radioStarted = false;
-        let currentRequestId = null;
-        let pollTimer = null;
+const songTitle =
+    document.getElementById("song-title");
+
+const songChannel =
+    document.getElementById("song-channel");
+
+const player =
+    document.getElementById("player");
+
+const queueList =
+    document.getElementById("queue-list");
+
+const queueCount =
+    document.getElementById("queue-count");
 
 
-        startButton.addEventListener("click", () => {
+let radioStarted = false;
 
-            if (radioStarted) {
-                return;
-            }
+let currentSong = null;
 
-            radioStarted = true;
+let polling = false;
 
-            startButton.disabled = true;
-            startButton.textContent = "Radio is running";
+let pollTimer = null;
 
-            status.textContent =
-                "Waiting for song requests... 🎧";
 
-            checkForRequest();
+/* -------------------------
+   START RADIO
+------------------------- */
 
-            pollTimer = setInterval(
-                checkForRequest,
-                3000
+startButton.addEventListener("click", () => {
+
+    if (radioStarted) {
+        return;
+    }
+
+    radioStarted = true;
+
+    startButton.disabled = true;
+
+    startButton.textContent =
+        "Radio is running";
+
+    status.textContent =
+        "Waiting for requests... 🎧";
+
+    checkQueue();
+
+    pollTimer = setInterval(
+        checkQueue,
+        3000
+    );
+
+});
+
+
+/* -------------------------
+   CHECK QUEUE
+------------------------- */
+
+async function checkQueue() {
+
+    if (!radioStarted || polling) {
+        return;
+    }
+
+    polling = true;
+
+    try {
+
+        const response = await fetch(
+            `${WORKER_URL}/requests`
+        );
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error ||
+                "Could not load queue"
+            );
+        }
+
+        const requests =
+            data.requests || [];
+
+        renderQueue(requests);
+
+        /*
+         * If nothing is currently playing,
+         * start the first pending song.
+         */
+
+        if (!currentSong && requests.length > 0) {
+
+            await startNextSong(
+                requests[0]
             );
 
-        });
-
-
-        async function checkForRequest() {
-
-            if (!radioStarted) {
-                return;
-            }
-
-            try {
-
-                const response = await fetch(
-                    `${WORKER_URL}/requests`
-                );
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(
-                        data.error || "Could not check requests"
-                    );
-                }
-
-                const request = data.request;
-
-                if (!request) {
-                    return;
-                }
-
-                if (
-                    currentRequestId === request.id
-                ) {
-                    return;
-                }
-
-                playRequest(request);
-
-            } catch (error) {
-
-                console.error(error);
-
-                status.textContent =
-                    "Connection problem. Retrying...";
-
-            }
-
         }
 
+    } catch (error) {
 
-        function playRequest(request) {
+        console.error(error);
 
-            currentRequestId = request.id;
+        status.textContent =
+            "Connection problem. Retrying...";
 
-            status.textContent =
-                "Now playing 🎵";
+    } finally {
 
-            requestBox.classList.remove("hidden");
+        polling = false;
 
-            requestTitle.textContent =
-                request.title;
+    }
 
-            requestChannel.textContent =
-                request.channel;
+}
 
-            player.innerHTML = `
-                <iframe
-                    src="https://www.youtube.com/embed/${encodeURIComponent(
-                        request.video_id
-                    )}?autoplay=1&rel=0"
-                    title="Cupa Club Radio"
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowfullscreen>
-                </iframe>
+
+/* -------------------------
+   START NEXT SONG
+------------------------- */
+
+async function startNextSong(request) {
+
+    currentSong = request;
+
+    status.textContent =
+        "Now playing 🎵";
+
+    songTitle.textContent =
+        request.title;
+
+    songChannel.textContent =
+        request.channel || "";
+
+    /*
+     * Mark the request as playing
+     * before starting playback.
+     */
+
+    try {
+
+        await fetch(
+            `${WORKER_URL}/request/start`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    id: request.id
+                })
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Could not mark song as playing:",
+            error
+        );
+
+    }
+
+
+    /*
+     * Load official YouTube player.
+     */
+
+    player.innerHTML = `
+        <iframe
+            id="youtube-player"
+            src="https://www.youtube.com/embed/${encodeURIComponent(
+                request.video_id
+            )}?autoplay=1&rel=0"
+            title="Cupa Club Radio"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen>
+        </iframe>
+    `;
+
+
+    /*
+     * IMPORTANT:
+     *
+     * We cannot reliably detect the end of a
+     * YouTube iframe using a normal iframe.
+     *
+     * So for the next step we'll add the official
+     * YouTube IFrame API.
+     */
+
+}
+
+
+/* -------------------------
+   RENDER QUEUE
+------------------------- */
+
+function renderQueue(requests) {
+
+    const pending =
+        requests.filter(
+            request =>
+                !currentSong ||
+                request.id !== currentSong.id
+        );
+
+    queueCount.textContent =
+        `${pending.length} / 5`;
+
+    if (!pending.length) {
+
+        queueList.innerHTML = `
+            <div class="empty-queue">
+                No songs waiting.
+            </div>
+        `;
+
+        return;
+    }
+
+    queueList.innerHTML = "";
+
+    pending.forEach(
+        (request, index) => {
+
+            const item =
+                document.createElement("div");
+
+            item.className =
+                "queue-item";
+
+            item.innerHTML = `
+
+                <div class="queue-number">
+                    ${index + 1}
+                </div>
+
+                <div class="queue-song">
+
+                    <div class="queue-song-title">
+                        ${escapeHTML(
+                            request.title
+                        )}
+                    </div>
+
+                    <div class="queue-song-channel">
+                        ${escapeHTML(
+                            request.channel || ""
+                        )}
+                    </div>
+
+                </div>
             `;
 
-            markRequestAsPlayed(request.id);
+            queueList.appendChild(item);
 
         }
+    );
+
+}
 
 
-        async function markRequestAsPlayed(id) {
+/* -------------------------
+   ESCAPE HTML
+------------------------- */
 
-            try {
+function escapeHTML(text) {
 
-                await fetch(
-                    `${WORKER_URL}/request/played`,
-                    {
-                        method: "POST",
+    const div =
+        document.createElement("div");
 
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
+    div.textContent = text;
 
-                        body: JSON.stringify({
-                            id: id
-                        })
-                    }
-                );
+    return div.innerHTML;
 
-            } catch (error) {
+}
 
-                console.error(
-                    "Could not mark request as played:",
-                    error
-                );
-
-            }
-
-        }
-
-    </script>
+</script>
 
 </body>
 </html>
