@@ -1,1 +1,303 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Cupa Club DJ</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .dj-app {
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .logo span {
+            color: #ff6a00;
+        }
+
+        .status {
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #start-button {
+            background: #ff6a00;
+            color: white;
+            width: 100%;
+        }
+
+        #start-button:disabled {
+            opacity: 0.6;
+        }
+
+        .request {
+            margin-top: 30px;
+            padding: 20px;
+            background: #1d1d1d;
+            border-radius: 16px;
+            text-align: left;
+        }
+
+        .request h2 {
+            margin-top: 0;
+            font-size: 18px;
+        }
+
+        .request-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .request-channel {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .player {
+            margin-top: 25px;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: black;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .player iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="dj-app">
+
+        <div class="logo">
+            CUPA<span>CLUB</span>
+        </div>
+
+        <h1>DJ Mode 🎧</h1>
+
+        <p id="status" class="status">
+            Radio is stopped.
+        </p>
+
+        <button id="start-button">
+            Start Cupa Club Radio
+        </button>
+
+        <section id="request" class="request hidden">
+
+            <h2>Now Playing</h2>
+
+            <div id="request-title" class="request-title"></div>
+
+            <div id="request-channel" class="request-channel"></div>
+
+            <div id="player" class="player"></div>
+
+        </section>
+
+    </main>
+
+    <script>
+
+        const WORKER_URL =
+            "https://cupa-club-radio.pratikchavan2468.workers.dev";
+
+        const startButton =
+            document.getElementById("start-button");
+
+        const status =
+            document.getElementById("status");
+
+        const requestBox =
+            document.getElementById("request");
+
+        const requestTitle =
+            document.getElementById("request-title");
+
+        const requestChannel =
+            document.getElementById("request-channel");
+
+        const player =
+            document.getElementById("player");
+
+        let radioStarted = false;
+        let currentRequestId = null;
+        let pollTimer = null;
+
+
+        startButton.addEventListener("click", () => {
+
+            if (radioStarted) {
+                return;
+            }
+
+            radioStarted = true;
+
+            startButton.disabled = true;
+            startButton.textContent = "Radio is running";
+
+            status.textContent =
+                "Waiting for song requests... 🎧";
+
+            checkForRequest();
+
+            pollTimer = setInterval(
+                checkForRequest,
+                3000
+            );
+
+        });
+
+
+        async function checkForRequest() {
+
+            if (!radioStarted) {
+                return;
+            }
+
+            try {
+
+                const response = await fetch(
+                    `${WORKER_URL}/requests`
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || "Could not check requests"
+                    );
+                }
+
+                const request = data.request;
+
+                if (!request) {
+                    return;
+                }
+
+                if (
+                    currentRequestId === request.id
+                ) {
+                    return;
+                }
+
+                playRequest(request);
+
+            } catch (error) {
+
+                console.error(error);
+
+                status.textContent =
+                    "Connection problem. Retrying...";
+
+            }
+
+        }
+
+
+        function playRequest(request) {
+
+            currentRequestId = request.id;
+
+            status.textContent =
+                "Now playing 🎵";
+
+            requestBox.classList.remove("hidden");
+
+            requestTitle.textContent =
+                request.title;
+
+            requestChannel.textContent =
+                request.channel;
+
+            player.innerHTML = `
+                <iframe
+                    src="https://www.youtube.com/embed/${encodeURIComponent(
+                        request.video_id
+                    )}?autoplay=1&rel=0"
+                    title="Cupa Club Radio"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowfullscreen>
+                </iframe>
+            `;
+
+            markRequestAsPlayed(request.id);
+
+        }
+
+
+        async function markRequestAsPlayed(id) {
+
+            try {
+
+                await fetch(
+                    `${WORKER_URL}/request/played`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            id: id
+                        })
+                    }
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "Could not mark request as played:",
+                    error
+                );
+
+            }
+
+        }
+
+    </script>
+
+</body>
+</html>
