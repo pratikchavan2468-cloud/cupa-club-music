@@ -44,7 +44,7 @@
         .status {
             text-align: center;
             color: #aaa;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         button {
@@ -106,6 +106,22 @@
             width: 100%;
             height: 100%;
             border: 0;
+        }
+
+        .next-button {
+            width: 100%;
+            margin-top: 15px;
+            background: #333;
+            color: white;
+        }
+
+        .next-button:hover {
+            background: #444;
+        }
+
+        .next-button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
         .queue {
@@ -215,6 +231,14 @@
 
         <div id="player" class="player"></div>
 
+        <button
+            id="next-button"
+            class="next-button"
+            disabled
+        >
+            Next Song ⏭
+        </button>
+
     </section>
 
     <section class="queue">
@@ -242,7 +266,6 @@
 </main>
 
 
-<!-- YouTube IFrame Player API -->
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <script>
@@ -250,9 +273,11 @@
 const WORKER_URL =
     "https://cupa-club-radio.pratikchavan2468.workers.dev";
 
-
 const startButton =
     document.getElementById("start-button");
+
+const nextButton =
+    document.getElementById("next-button");
 
 const status =
     document.getElementById("status");
@@ -274,16 +299,12 @@ const queueCount =
 
 
 let radioStarted = false;
-
 let currentSong = null;
-
 let youtubePlayer = null;
-
 let polling = false;
-
 let pollTimer = null;
-
 let youtubeReady = false;
+let finishingSong = false;
 
 
 /* -------------------------
@@ -323,6 +344,21 @@ startButton.addEventListener("click", () => {
         checkQueue,
         3000
     );
+
+});
+
+
+/* -------------------------
+   NEXT BUTTON
+------------------------- */
+
+nextButton.addEventListener("click", () => {
+
+    if (!currentSong) {
+        return;
+    }
+
+    skipCurrentSong();
 
 });
 
@@ -368,7 +404,10 @@ async function checkQueue() {
          * start the first pending song.
          */
 
-        if (!currentSong && requests.length > 0) {
+        if (
+            !currentSong &&
+            requests.length > 0
+        ) {
 
             await startNextSong(
                 requests[0]
@@ -398,7 +437,13 @@ async function checkQueue() {
 
 async function startNextSong(request) {
 
+    if (currentSong) {
+        return;
+    }
+
     currentSong = request;
+
+    finishingSong = false;
 
     status.textContent =
         "Now playing 🎵";
@@ -408,6 +453,8 @@ async function startNextSong(request) {
 
     songChannel.textContent =
         request.channel || "";
+
+    nextButton.disabled = false;
 
 
     /*
@@ -449,7 +496,15 @@ async function startNextSong(request) {
     if (!youtubeReady) {
 
         setTimeout(
-            () => startNextSong(request),
+            () => {
+
+                if (currentSong?.id === request.id) {
+
+                    startNextSong(request);
+
+                }
+
+            },
             500
         );
 
@@ -457,10 +512,6 @@ async function startNextSong(request) {
 
     }
 
-
-    /*
-     * Create YouTube player.
-     */
 
     player.innerHTML =
         `<div id="youtube-player"></div>`;
@@ -557,24 +608,124 @@ function onPlayerError(event) {
 
 
 /* -------------------------
-   FINISH CURRENT SONG
+   SKIP CURRENT SONG
 ------------------------- */
 
-async function finishCurrentSong() {
+async function skipCurrentSong() {
 
-    if (!currentSong) {
+    if (
+        !currentSong ||
+        finishingSong
+    ) {
         return;
     }
 
-    const finishedSong =
+    finishingSong = true;
+
+    const skippedSong =
         currentSong;
 
-    currentSong = null;
+
+    status.textContent =
+        "Skipping... ⏭";
 
 
     /*
      * Mark current song as played.
      */
+
+    try {
+
+        await fetch(
+            `${WORKER_URL}/request/played`,
+            {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    id:
+                        skippedSong.id
+                })
+
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Could not skip song:",
+            error
+        );
+
+    }
+
+
+    /*
+     * Destroy current player.
+     */
+
+    if (youtubePlayer) {
+
+        youtubePlayer.destroy();
+
+        youtubePlayer = null;
+
+    }
+
+    player.innerHTML = "";
+
+    currentSong = null;
+
+    nextButton.disabled = true;
+
+    songTitle.textContent =
+        "Loading next song...";
+
+    songChannel.textContent = "";
+
+
+    /*
+     * Give D1 a moment to update,
+     * then load the next request.
+     */
+
+    setTimeout(
+        () => {
+
+            finishingSong = false;
+
+            checkQueue();
+
+        },
+        300
+    );
+
+}
+
+
+/* -------------------------
+   FINISH CURRENT SONG
+------------------------- */
+
+async function finishCurrentSong() {
+
+    if (
+        !currentSong ||
+        finishingSong
+    ) {
+        return;
+    }
+
+    finishingSong = true;
+
+    const finishedSong =
+        currentSong;
+
 
     try {
 
@@ -607,10 +758,6 @@ async function finishCurrentSong() {
     }
 
 
-    /*
-     * Destroy old YouTube player.
-     */
-
     if (youtubePlayer) {
 
         youtubePlayer.destroy();
@@ -619,9 +766,11 @@ async function finishCurrentSong() {
 
     }
 
-
     player.innerHTML = "";
 
+    currentSong = null;
+
+    nextButton.disabled = true;
 
     songTitle.textContent =
         "Loading next song...";
@@ -630,11 +779,19 @@ async function finishCurrentSong() {
 
 
     /*
-     * Immediately check for
-     * the next song.
+     * Automatically load next song.
      */
 
-    await checkQueue();
+    setTimeout(
+        () => {
+
+            finishingSong = false;
+
+            checkQueue();
+
+        },
+        300
+    );
 
 }
 
