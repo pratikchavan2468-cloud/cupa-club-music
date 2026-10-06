@@ -13,7 +13,7 @@ async function searchSongs() {
     return;
   }
 
-  resultsContainer.innerHTML = "<p>Searching... 🎧</p>";
+  resultsContainer.innerHTML = "<p>Finding the best match... 🎧</p>";
 
   try {
     const response = await fetch(
@@ -26,55 +26,57 @@ async function searchSongs() {
       throw new Error(data.error || "Search failed");
     }
 
-    displayResults(data.results || []);
+    displayBestResult(data.results || []);
   } catch (error) {
     console.error(error);
+
     resultsContainer.innerHTML =
       "<p>Something went wrong. Please try again.</p>";
   }
 }
 
-function displayResults(results) {
+function displayBestResult(results) {
   if (!results.length) {
     resultsContainer.innerHTML =
-      "<p>No songs found. Try another search.</p>";
+      "<p>No song found. Try another search.</p>";
     return;
   }
 
+  // For now, use YouTube's top search result.
+  const song = results[0];
+
   resultsContainer.innerHTML = "";
 
-  results.forEach((song) => {
-    const card = document.createElement("button");
+  const card = document.createElement("button");
 
-    card.className = "song-card";
+  card.className = "song-card";
 
-    card.innerHTML = `
-      <img src="${song.thumbnail}" alt="">
-      <div class="song-info">
-        <h3>${escapeHTML(song.title)}</h3>
-        <p>${escapeHTML(song.channel)}</p>
-      </div>
-    `;
+  card.innerHTML = `
+    <div class="song-info">
+      <h3>${escapeHTML(song.title)}</h3>
+      <p>${escapeHTML(song.channel)}</p>
+    </div>
+    <span class="play-icon">▶</span>
+  `;
 
-    card.addEventListener("click", () => {
-      playSong(song.videoId);
-    });
-
-    resultsContainer.appendChild(card);
+  card.addEventListener("click", () => {
+    playSong(song.videoId);
   });
+
+  resultsContainer.appendChild(card);
 }
 
 function playSong(videoId) {
   playerContainer.innerHTML = `
-    <iframe
-      width="100%"
-      height="315"
-      src="https://www.youtube.com/embed/${videoId}?autoplay=1"
-      title="YouTube video player"
-      frameborder="0"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      allowfullscreen>
-    </iframe>
+    <div class="player-wrapper">
+      <iframe
+        src="https://www.youtube.com/embed/${videoId}?autoplay=1"
+        title="Cupa Club Radio"
+        frameborder="0"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        allowfullscreen>
+      </iframe>
+    </div>
   `;
 
   playerContainer.scrollIntoView({
