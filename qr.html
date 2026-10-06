@@ -206,8 +206,6 @@
 </main>
 
 
-<!-- Free QR code library -->
-
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 
@@ -216,7 +214,6 @@
 const WORKER_URL =
     "https://cupa-club-radio.pratikchavan2468.workers.dev";
 
-
 const CUSTOMER_URL =
     "https://cupa-club-music.pratikchavan2468.workers.dev";
 
@@ -224,20 +221,14 @@ const CUSTOMER_URL =
 const qrArea =
     document.getElementById("qr-area");
 
-
 const queueFullArea =
-    document.getElementById(
-        "queue-full-area"
-    );
-
+    document.getElementById("queue-full-area");
 
 const qrCanvas =
     document.getElementById("qr");
 
-
 const timer =
     document.getElementById("timer");
-
 
 const status =
     document.getElementById("status");
@@ -269,7 +260,6 @@ async function checkQueueStatus() {
                 `${WORKER_URL}/qr/status`
             );
 
-
         const data =
             await response.json();
 
@@ -293,22 +283,13 @@ async function checkQueueStatus() {
         }
 
 
-        /*
-         * Queue has space.
-         *
-         * If we already have a QR,
-         * first check whether someone
-         * has used it or whether it
-         * has expired.
-         */
-
         if (currentToken) {
 
             await checkCurrentSession();
 
         } else {
 
-            showQR();
+            createQRSession();
 
         }
 
@@ -316,7 +297,6 @@ async function checkQueueStatus() {
     } catch (error) {
 
         console.error(error);
-
 
         status.textContent =
             "Connection problem. Retrying...";
@@ -336,16 +316,13 @@ function showQueueFull() {
         countdownTimer
     );
 
-
     qrArea.classList.add(
         "hidden"
     );
 
-
     queueFullArea.classList.remove(
         "hidden"
     );
-
 
     status.textContent =
         "Waiting for a spot to open...";
@@ -354,51 +331,15 @@ function showQueueFull() {
 
 
 // ---------------------------------
-// SHOW QR
-// ---------------------------------
-
-function showQR() {
-
-    queueFullArea.classList.add(
-        "hidden"
-    );
-
-
-    qrArea.classList.remove(
-        "hidden"
-    );
-
-
-    /*
-     * Only show "Creating secure
-     * session" when we are actually
-     * creating one.
-     */
-
-    if (!expiresAt) {
-
-        status.textContent =
-            "Creating secure session...";
-
-        createQRSession();
-
-    } else {
-
-        status.textContent =
-            "QR is active";
-
-    }
-
-}
-
-
-// ---------------------------------
-// CREATE QR SESSION
+// CREATE QR
 // ---------------------------------
 
 async function createQRSession() {
 
-    if (creatingQR) return;
+    if (creatingQR) {
+        return;
+    }
+
 
     creatingQR = true;
 
@@ -408,8 +349,20 @@ async function createQRSession() {
     );
 
 
+    qrArea.classList.remove(
+        "hidden"
+    );
+
+    queueFullArea.classList.add(
+        "hidden"
+    );
+
+
     timer.textContent =
         "Creating new QR...";
+
+    status.textContent =
+        "Creating secure session...";
 
 
     try {
@@ -426,11 +379,6 @@ async function createQRSession() {
         const data =
             await response.json();
 
-
-        /*
-         * Queue filled between the
-         * status check and QR creation.
-         */
 
         if (
             response.status === 429 ||
@@ -460,7 +408,6 @@ async function createQRSession() {
 
         expiresAt =
             data.expiresAt;
-
 
         currentToken =
             data.token;
@@ -500,6 +447,10 @@ async function createQRSession() {
         currentToken = null;
 
 
+        timer.textContent =
+            "Retrying...";
+
+
         status.textContent =
             "Could not create QR. Retrying...";
 
@@ -514,16 +465,19 @@ async function createQRSession() {
 
 
 // ---------------------------------
-// CHECK CURRENT QR SESSION
+// CHECK CURRENT SESSION
 // ---------------------------------
 
 async function checkCurrentSession() {
 
     if (
         !currentToken ||
-        checkingSession
+        checkingSession ||
+        creatingQR
     ) {
+
         return;
+
     }
 
 
@@ -545,13 +499,13 @@ async function checkCurrentSession() {
 
 
         /*
-         * QR has been used or expired.
-         *
-         * Create a completely new
-         * session.
+         * QR was used or expired.
          */
 
-        if (!response.ok || !data.valid) {
+        if (
+            !response.ok ||
+            !data.valid
+        ) {
 
             clearInterval(
                 countdownTimer
@@ -567,7 +521,11 @@ async function checkCurrentSession() {
                 "Refreshing QR...";
 
 
-            showQR();
+            /*
+             * Directly create the next QR.
+             */
+
+            await createQRSession();
 
 
             return;
@@ -576,7 +534,7 @@ async function checkCurrentSession() {
 
 
         /*
-         * Session is still valid.
+         * QR is still active.
          */
 
         if (data.expiresAt) {
@@ -587,12 +545,11 @@ async function checkCurrentSession() {
         }
 
 
-        queueFullArea.classList.add(
+        qrArea.classList.remove(
             "hidden"
         );
 
-
-        qrArea.classList.remove(
+        queueFullArea.classList.add(
             "hidden"
         );
 
@@ -600,18 +557,6 @@ async function checkCurrentSession() {
         status.textContent =
             "QR is active";
 
-
-        /*
-         * Make sure countdown is
-         * running after returning
-         * from Queue Full state.
-         */
-
-        if (!countdownTimer) {
-
-            startCountdown();
-
-        }
 
     } catch (error) {
 
@@ -639,12 +584,10 @@ function startCountdown() {
 
     countdownTimer =
         setInterval(
-            () => {
+            async () => {
 
                 if (!expiresAt) {
-
                     return;
-
                 }
 
 
@@ -672,10 +615,12 @@ function startCountdown() {
 
 
                     /*
-                     * Check the queue first.
+                     * Directly check the queue.
+                     * If there is room, this will
+                     * immediately create a new QR.
                      */
 
-                    checkQueueStatus();
+                    await checkQueueStatus();
 
 
                     return;
