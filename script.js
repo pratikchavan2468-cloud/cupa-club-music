@@ -20,31 +20,39 @@ const sessionToken =
 // ---------------------------------
 
 const searchInput =
-    document.getElementById("searchInput");
+    document.getElementById(
+        "search-input"
+    );
 
 const searchButton =
-    document.getElementById("searchButton");
+    document.getElementById(
+        "search-button"
+    );
 
-const resultArea =
-    document.getElementById("result");
-
-const messageArea =
-    document.getElementById("message");
+const results =
+    document.getElementById(
+        "results"
+    );
 
 
 // ---------------------------------
-// BASIC HELPERS
+// MESSAGE
 // ---------------------------------
 
 function showMessage(message) {
 
-    if (messageArea) {
-        messageArea.textContent =
-            message;
-    }
+    results.innerHTML = `
+        <div class="message">
+            ${escapeHTML(message)}
+        </div>
+    `;
 
 }
 
+
+// ---------------------------------
+// ESCAPE HTML
+// ---------------------------------
 
 function escapeHTML(text) {
 
@@ -60,7 +68,7 @@ function escapeHTML(text) {
 
 
 // ---------------------------------
-// CHECK SESSION
+// VALIDATE QR SESSION
 // ---------------------------------
 
 async function validateSession() {
@@ -71,13 +79,8 @@ async function validateSession() {
             "Please scan the Cupa Club QR code first."
         );
 
-        if (searchButton) {
-            searchButton.disabled = true;
-        }
-
-        if (searchInput) {
-            searchInput.disabled = true;
-        }
+        searchButton.disabled = true;
+        searchInput.disabled = true;
 
         return false;
 
@@ -107,13 +110,8 @@ async function validateSession() {
                 "This QR session has expired. Please scan the new Cupa Club QR."
             );
 
-            if (searchButton) {
-                searchButton.disabled = true;
-            }
-
-            if (searchInput) {
-                searchInput.disabled = true;
-            }
+            searchButton.disabled = true;
+            searchInput.disabled = true;
 
             return false;
 
@@ -139,7 +137,7 @@ async function validateSession() {
 
 
 // ---------------------------------
-// SEARCH
+// SEARCH SONGS
 // ---------------------------------
 
 async function searchSongs() {
@@ -169,6 +167,7 @@ async function searchSongs() {
 
 
     searchButton.disabled = true;
+
 
     showMessage(
         "Searching..."
@@ -219,24 +218,24 @@ async function searchSongs() {
             data.items[0];
 
 
-        resultArea.innerHTML = `
+        results.innerHTML = `
 
             <div class="song-result">
 
-                <div class="song-title">
+                <h3>
                     ${escapeHTML(
                         song.title
                     )}
-                </div>
+                </h3>
 
-                <div class="song-channel">
+                <p>
                     ${escapeHTML(
                         song.channel || ""
                     )}
-                </div>
+                </p>
 
                 <button
-                    id="requestButton"
+                    id="request-button"
                     type="button"
                 >
                     Request this song ☕
@@ -249,7 +248,7 @@ async function searchSongs() {
 
         document
             .getElementById(
-                "requestButton"
+                "request-button"
             )
             .addEventListener(
                 "click",
@@ -257,13 +256,7 @@ async function searchSongs() {
             );
 
 
-        showMessage(
-            "Found it. Ready to request?"
-        );
-
-
         searchButton.disabled = false;
-
 
     } catch (error) {
 
@@ -288,7 +281,7 @@ async function requestSong(song) {
 
     const requestButton =
         document.getElementById(
-            "requestButton"
+            "request-button"
         );
 
 
@@ -330,7 +323,6 @@ async function requestSong(song) {
                             sessionToken
 
                     })
-
                 }
             );
 
@@ -340,7 +332,7 @@ async function requestSong(song) {
 
 
         // ---------------------------------
-        // SESSION EXPIRED / USED
+        // QR SESSION EXPIRED / USED
         // ---------------------------------
 
         if (
@@ -352,13 +344,8 @@ async function requestSong(song) {
                 "This QR session has expired. Please scan the new Cupa Club QR."
             );
 
-            if (searchButton) {
-                searchButton.disabled = true;
-            }
-
-            if (searchInput) {
-                searchInput.disabled = true;
-            }
+            searchButton.disabled = true;
+            searchInput.disabled = true;
 
             if (requestButton) {
                 requestButton.disabled = true;
@@ -409,23 +396,16 @@ async function requestSong(song) {
         // ---------------------------------
 
         showMessage(
-            `Your song is in the queue! 🎧 You're #${data.position || "next"} in line.`
+            "Your song is in the queue! 🎧"
         );
 
 
         /*
-         * This QR session is now used.
-         * Prevent another request from
-         * this customer page.
+         * One QR session = one request.
          */
 
-        if (searchButton) {
-            searchButton.disabled = true;
-        }
-
-        if (searchInput) {
-            searchInput.disabled = true;
-        }
+        searchButton.disabled = true;
+        searchInput.disabled = true;
 
         if (requestButton) {
             requestButton.disabled = true;
@@ -450,37 +430,33 @@ async function requestSong(song) {
 
 
 // ---------------------------------
-// EVENTS
+// SEARCH BUTTON
 // ---------------------------------
 
-if (searchButton) {
-
-    searchButton.addEventListener(
-        "click",
-        searchSongs
-    );
-
-}
+searchButton.addEventListener(
+    "click",
+    searchSongs
+);
 
 
-if (searchInput) {
+// ---------------------------------
+// ENTER KEY
+// ---------------------------------
 
-    searchInput.addEventListener(
-        "keydown",
-        (event) => {
+searchInput.addEventListener(
+    "keydown",
+    (event) => {
 
-            if (
-                event.key === "Enter"
-            ) {
+        if (
+            event.key === "Enter"
+        ) {
 
-                searchSongs();
-
-            }
+            searchSongs();
 
         }
-    );
 
-}
+    }
+);
 
 
 // ---------------------------------
