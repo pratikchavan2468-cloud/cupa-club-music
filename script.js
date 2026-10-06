@@ -13,7 +13,8 @@ async function searchSongs() {
     return;
   }
 
-  resultsContainer.innerHTML = "<p>Finding the best match... 🎧</p>";
+  resultsContainer.innerHTML =
+    "<p>Finding the best match... 🎧</p>";
 
   try {
     const response = await fetch(
@@ -42,12 +43,12 @@ function displayBestResult(results) {
     return;
   }
 
-  // For now, use YouTube's top search result.
+  // Use YouTube's top search result.
   const song = results[0];
 
   resultsContainer.innerHTML = "";
 
-  const card = document.createElement("button");
+  const card = document.createElement("div");
 
   card.className = "song-card";
 
@@ -56,33 +57,73 @@ function displayBestResult(results) {
       <h3>${escapeHTML(song.title)}</h3>
       <p>${escapeHTML(song.channel)}</p>
     </div>
-    <span class="play-icon">▶</span>
+
+    <button class="request-button">
+      Request Song
+    </button>
   `;
 
-  card.addEventListener("click", () => {
-    playSong(song.videoId);
+  const requestButton =
+    card.querySelector(".request-button");
+
+  requestButton.addEventListener("click", () => {
+    requestSong(song, requestButton);
   });
 
   resultsContainer.appendChild(card);
 }
 
-function playSong(videoId) {
-  playerContainer.innerHTML = `
-    <div class="player-wrapper">
-      <iframe
-        src="https://www.youtube.com/embed/${videoId}?autoplay=1"
-        title="Cupa Club Radio"
-        frameborder="0"
-        allow="autoplay; encrypted-media; picture-in-picture"
-        allowfullscreen>
-      </iframe>
-    </div>
-  `;
+async function requestSong(song, button) {
+  button.disabled = true;
+  button.textContent = "Sending...";
 
-  playerContainer.scrollIntoView({
-    behavior: "smooth",
-    block: "center"
-  });
+  try {
+    const response = await fetch(
+      `${WORKER_URL}/request`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          videoId: song.videoId,
+          title: song.title,
+          channel: song.channel
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Could not request song"
+      );
+    }
+
+    resultsContainer.innerHTML = `
+      <div class="request-success">
+        <h3>Song requested! 🎧</h3>
+        <p>${escapeHTML(song.title)}</p>
+        <small>
+          Your song has been sent to Cupa Club Radio.
+        </small>
+      </div>
+    `;
+
+    // Customer phone does NOT play the song.
+    playerContainer.innerHTML = "";
+
+  } catch (error) {
+    console.error(error);
+
+    button.disabled = false;
+    button.textContent = "Request Song";
+
+    alert(
+      "Couldn't send the request. Please try again."
+    );
+  }
 }
 
 function escapeHTML(text) {
